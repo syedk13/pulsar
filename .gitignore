@@ -1,0 +1,34 @@
+# Env / secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Node
+node_modules/
+dist/
+*.tsbuildinfo
+npm-debug.log*
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.ruff_cache/
+
+# Local caches
+.cache/
+
+# Supabase CLI local state
+supabase/.temp/
+supabase/.branches/
+
+# OS / editor
+.DS_Store
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+# Deployment tooling
+.vercel/
