@@ -2,14 +2,20 @@
   "name": "pulsar",
   "private": true,
   "version": "0.0.0",
-  "description": "Pulsar — astronaut health self-monitoring concept (NASA Space Apps). Scaffold only.",
-  "workspaces": ["apps/web"],
+  "description": "Pulsar \u2014 astronaut health self-monitoring concept (NASA Space Apps). Scaffold only.",
+  "workspaces": [
+    "apps/web"
+  ],
   "scripts": {
     "dev:web": "npm run dev --workspace apps/web",
     "build:web": "npm run build --workspace apps/web",
     "preview:web": "npm run preview --workspace apps/web",
     "dev:api": "cd apps/api && PIP_CACHE_DIR=../../.cache/pip .venv/bin/uvicorn app.main:app --reload --port 8000",
-    "setup:api": "cd apps/api && python3 -m venv .venv && PIP_CACHE_DIR=../../.cache/pip .venv/bin/pip install -r requirements.txt"
+    "setup:api": "cd apps/api && python3 -m venv .venv && PIP_CACHE_DIR=../../.cache/pip .venv/bin/pip install -r requirements.txt",
+    "synth": "cd apps/api && .venv/bin/python -m app.synthetic",
+    "test:api": "cd apps/api && .venv/bin/python -m pytest -q"
   },
-  "engines": { "node": ">=22.12.0" }
+  "engines": {
+    "node": ">=22.12.0"
+  }
 }
