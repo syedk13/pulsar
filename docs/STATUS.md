@@ -16,7 +16,7 @@ Living handoff doc for people and agents. Rules (also in [AGENTS.md](../AGENTS.m
 |---|---|---|---|
 | M0 | Scaffold | Web builds, `GET /health` 200, `POST /analyze` 501, migration written | Done |
 | M1 | Supabase live | Project created, `.env` filled, migration applied, demo access policy decided | Not started |
-| M2 | Synthetic data | Deterministic generator for profiles, check-ins and mission readings, all labeled simulated, loadable into Supabase | Not started |
+| M2 | Synthetic data | Deterministic generator for profiles, check-ins and mission readings, all labeled simulated, loadable into Supabase | In progress (generator done; migration + loader remain) |
 | M3 | Check-in flow | Web form saves a check-in for a fictional profile and shows it back | Not started |
 | M4 | Baselines + `/analyze` | Per-profile baseline, anomaly score, explanation, `insufficient_data` path, result saved to `anomaly_results` | Not started |
 | M5 | Core screens | Mission Overview, Health Trends with baseline band, separate mission-context panel, Flag Details | Not started |
@@ -43,19 +43,19 @@ Ordered. Milestone in brackets. Take from the top unless you are told otherwise.
 1. [M1] Create the Supabase project, fill `.env`, apply `supabase/migrations/20261114000000_initial_schema.sql`. (Manual, project owner.)
 2. [M1] Decide sign-in vs no sign-in for the demo. If no sign-in, add a new migration with `anon` SELECT policies limited to `is_fictional = true`.
 3. [M2] New migration: widen `environment_readings.measurement_type` (adds `ppco2`, `proton_flux_ge10mev`) and add `mission_events` (see `docs/synthetic-data.md` section 3). Update `data-model.md`.
-4. [M2] Synthetic data generator in `apps/api/app/synthetic/` per `docs/synthetic-data.md` (`synth-0.2.0`): seed 2026, CREW-A to D, 60 days, scenarios S0 to S7; radiation, acceleration, ppCO2 and proton flux every 5 minutes; tests for the V1 4033 guardrail and CO2 checks.
-5. [M2] Seed script that loads synthetic data into Supabase (server key) or exports SQL/CSV.
-6. [API] Add pytest and a first test for `GET /health` and the current `POST /analyze` 501.
-7. [M4] Feature prep + personal baseline (rolling median, short-term trend) in `apps/api/app/ml/`.
-8. [M4] Isolation Forest scoring + per-indicator explanation; implement `POST /analyze` per `docs/api-contract.md`.
-9. [M4] Environment status labels (`ppco2_above_1h_limit`, `ppco2_above_7d_guidance`, `solar_storm_S1`..`S5`) per `synthetic-data.md` section 8. Kept separate from `/analyze`.
-10. [M3] Web: `src/api/` client, profile picker, Daily Check-in form.
-11. [M5] Web: Mission Overview, Health Trends (Recharts), mission-context panel, Flag Details panel.
-12. [M6] Demo script + walkthrough check.
-13. [M7] Save DONKI SEP and NOAA proton samples (commands in `data-sources.md`), then `providers/noaa_swpc.py` and `providers/donki.py`; add `NASA_API_KEY` to `.env.example`.
+4. [M2] Seed script that loads `apps/api/app/synthetic/out/*.csv` into Supabase (server key). Needs item 3 first: the CSVs use the new `measurement_type` values and the `mission_events` table.
+5. [API] Add a first test for `GET /health` and the current `POST /analyze` 501 (pytest is now installed).
+6. [M4] Feature prep + personal baseline (rolling median, short-term trend) in `apps/api/app/ml/`.
+7. [M4] Isolation Forest scoring + per-indicator explanation; implement `POST /analyze` per `docs/api-contract.md`.
+8. [M4] Environment status labels (`ppco2_above_1h_limit`, `ppco2_above_7d_guidance`, `solar_storm_S1`..`S5`) per `synthetic-data.md` section 8. Kept separate from `/analyze`.
+9. [M3] Web: `src/api/` client, profile picker, Daily Check-in form.
+10. [M5] Web: Mission Overview, Health Trends (Recharts), mission-context panel, Flag Details panel.
+11. [M6] Demo script + walkthrough check.
+12. [M7] Save DONKI SEP and NOAA proton samples (commands in `data-sources.md`), then `providers/noaa_swpc.py` and `providers/donki.py`; add `NASA_API_KEY` to `.env.example`.
 
 ## Done
 
+- [M2] Synthetic generator `synth-0.2.0` in [apps/api/app/synthetic/](../apps/api/app/synthetic/) with 21 pytest checks (determinism, V1 4033 guardrail, CO2 1 h/7 d, scenarios). Branch `ml/synthetic-generator`.
 - [M0] Scaffold: React/Vite web, FastAPI with `/health` and 501 `/analyze`, schema + RLS migration, docs, pinned deps and lockfiles.
 - Agent workflow docs: `AGENTS.md` and this file.
 
@@ -78,6 +78,7 @@ Ordered. Milestone in brackets. Take from the top unless you are told otherwise.
 
 Newest first. Format: `YYYY-MM-DD: what changed (area)`.
 
+- 2026-11-16: Synthetic data generator `synth-0.2.0` (CREW-A to D, S0 to S7, 5 telemetry series at 5 min, 2 events), shared `app/limits.py`, pytest + 21 generator tests, `npm run synth` / `npm run test:api` (ml).
 - 2026-11-16: Aligned data plan with NASA-STD-3001, OCHMO-TB-020/004/030 and NOAA S-scale: official limits table, ppCO2 and proton flux streams, scenarios S5 to S7, environment status labels, demo vs live source split (docs).
 - 2026-11-15: Added `docs/synthetic-data.md`: source roles, schema change, check-in and telemetry generator spec (docs, ml).
 - 2026-11-14: Added `AGENTS.md` and `docs/STATUS.md` for the agent workflow (docs).

@@ -1,6 +1,6 @@
 # Synthetic data spec
 
-> Status: spec only. No generator code exists yet. Target home: `apps/api/app/synthetic/`.
+> Status: implemented in `apps/api/app/synthetic/` (`npm run synth`). Implementation choices the spec left open are listed in section 11.
 
 Everything here is **simulated demo data**. Environment limits come from NASA-STD-3001, the OCHMO technical briefs and the NOAA space weather scales (section 2). Crew check-in ranges come from published spaceflight studies, because none of those standards set in-mission ranges or alert values for sleep, resting heart rate or mood. Never label a generated value as NASA or NOAA data.
 
@@ -223,7 +223,25 @@ Environment labels appear on the mission-context panel with their source, never 
 - Generator writes `crew_profiles.csv`, `health_checkins.csv`, `environment_readings.csv`, `mission_events.csv` and `synthetic_manifest.json` to `apps/api/app/synthetic/out/` (git-ignored).
 - Saved real samples for live-mode adapters go in `apps/api/app/providers/samples/` (committed, small, with retrieval date): one DONKI SEP response and one NOAA `integral-protons-1-day.json`. See `docs/data-sources.md`.
 - Same seed must produce byte-identical files; add a test, plus tests for the guardrail and checks in sections 7a and 7c.
-- About 230 check-ins, about 86,000 environment readings (5 series × 17,280), 2 simulated events.
+- Seed 2026 produces 173 check-ins (CREW-D has only 5 days by design), 86,040 environment readings (5 series × 17,280, minus the 72-sample S7 gap each) and 2 simulated events.
+
+## 11. Implementation notes (synth-0.2.0)
+
+Choices made where the spec above was open. Change them here and in code together, and bump the version.
+
+- **Days** are 1-indexed: day 1 = `2026-09-01`. Scenario day ranges are inclusive.
+- **S1 mood:** on top of the sleep coupling, latent mood gets an extra −0.5 at the deepest point of the decline (scaled with it), so the mood change is visible on a 1 to 5 integer scale.
+- **S2** ends abruptly after day 49 (no recovery ramp). RHR reaches the +10 cap on day 48.
+- **`scenario_id`** in `data_quality` is the scenario active that day for that profile (`S4_schedule_shift` on days 20 and 21), otherwise `S0_stable`. `data_quality.mission_day` is also stored.
+- **Key windows** (no missing rows, no null fields): S4 days for everyone, S1 36 to 55, S2 42 to 49, all of CREW-D.
+- **IDs** are UUIDv5 from generator version, seed, table and natural key, so they are stable per seed.
+- **Q factor** for dose equivalent is drawn once per day. SAA passes are 15-minute triangles sampled at the 5-minute grid; no day needed SAA rescaling with seed 2026.
+- **Venting transients** are every 2 to 3 days, 10/15/20 minutes, the same offset added to y and z.
+- **ppCO2 exercise blocks** are 09:00 to 10:00 and 16:00 to 17:00 UTC.
+- **S5 storm** flux = max(background, storm curve × lognormal noise σ 0.1). Event start and end come from the generated values, using the shared `s_scale_level()` in `app/limits.py`.
+- **S6 event** (`CO2_EXCURSION`, `level = ppco2_above_1h_limit`) spans the trailing 1-hour mean above 3.0 mmHg.
+- **S7** removes 12:00 to 18:00 UTC on day 33 from all five series and marks the last reading before the gap (11:55) `is_stale = true`, with `metadata.feed_gap_until`.
+- **CSV format:** Postgres `COPY`-ready: empty field = NULL, `true`/`false`, jsonb columns as compact JSON with sorted keys, timestamps `YYYY-MM-DDTHH:MM:SSZ`.
 
 ## Sources
 

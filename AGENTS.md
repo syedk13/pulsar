@@ -31,6 +31,9 @@ These apply to every change: code, copy, docs, demo script.
 | `apps/api/app/main.py` | FastAPI app: `GET /health`, `POST /analyze` | `/health` works, `/analyze` returns 501 |
 | `apps/api/app/config.py` | Settings from root `.env` (pydantic-settings) | Done |
 | `apps/api/app/schemas.py` | Request/response models for the API contract | Done |
+| `apps/api/app/limits.py` | Official environment reference values + `s_scale_level()` (shared by generator and future providers) | Done |
+| `apps/api/app/synthetic/` | Deterministic generator (`synth-0.2.0`): `npm run synth` → CSVs + manifest in `app/synthetic/out/` (git-ignored) | Done, not loaded into Supabase |
+| `apps/api/tests/` | pytest (`npm run test:api`) | Generator tests only |
 | `supabase/migrations/` | Schema + RLS for 4 tables | Written, not applied to any project |
 | `docs/` | Architecture, data model, API contract, data sources, STATUS | Current |
 
@@ -38,10 +41,8 @@ Proposed homes for new code (create when the task starts, then update this table
 
 | Path | For |
 |---|---|
-| `apps/api/app/synthetic/` | Deterministic synthetic crew + mission data generator |
 | `apps/api/app/ml/` | Feature prep, baselines, anomaly model, explanations |
 | `apps/api/app/providers/` | NASA source adapters (PIMS, RadLab, ...), one module each |
-| `apps/api/tests/` | pytest tests |
 | `apps/web/src/api/` | One function per FastAPI endpoint; components never call `fetch` directly |
 | `apps/web/src/pages/` | Mission Overview, Daily Check-in, Health Trends (+ Flag Details panel) |
 
