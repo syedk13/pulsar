@@ -42,19 +42,19 @@ Ordered. Milestone in brackets. Take from the top unless you are told otherwise.
 
 1. [M1] Create the Supabase project, fill `.env`, apply `supabase/migrations/20261114000000_initial_schema.sql`. (Manual, project owner.)
 2. [M1] Decide sign-in vs no sign-in for the demo. If no sign-in, add a new migration with `anon` SELECT policies limited to `is_fictional = true`.
-3. [M2] New migration: widen `environment_readings.measurement_type` (adds `ppco2`, `proton_flux_ge10mev`) and add `mission_events` (see `docs/synthetic-data.md` section 3). Update `data-model.md`.
-4. [M2] Seed script that loads `apps/api/app/synthetic/out/*.csv` into Supabase (server key). Needs item 3 first: the CSVs use the new `measurement_type` values and the `mission_events` table.
-5. [API] Add a first test for `GET /health` and the current `POST /analyze` 501 (pytest is now installed).
-6. [M4] Feature prep + personal baseline (rolling median, short-term trend) in `apps/api/app/ml/`.
-7. [M4] Isolation Forest scoring + per-indicator explanation; implement `POST /analyze` per `docs/api-contract.md`.
-8. [M4] Environment status labels (`ppco2_above_1h_limit`, `ppco2_above_7d_guidance`, `solar_storm_S1`..`S5`) per `synthetic-data.md` section 8. Kept separate from `/analyze`.
-9. [M3] Web: `src/api/` client, profile picker, Daily Check-in form.
-10. [M5] Web: Mission Overview, Health Trends (Recharts), mission-context panel, Flag Details panel.
-11. [M6] Demo script + walkthrough check.
-12. [M7] Save DONKI SEP and NOAA proton samples (commands in `data-sources.md`), then `providers/noaa_swpc.py` and `providers/donki.py`; add `NASA_API_KEY` to `.env.example`.
+3. [M2] Apply both migrations to the Supabase project and run `supabase/load_synthetic.psql` (needs item 1). Compare counts with `synthetic_manifest.json`.
+4. [API] Add a first test for `GET /health` and the current `POST /analyze` 501 (pytest is now installed).
+5. [M4] Feature prep + personal baseline (rolling median, short-term trend) in `apps/api/app/ml/`.
+6. [M4] Isolation Forest scoring + per-indicator explanation; implement `POST /analyze` per `docs/api-contract.md`.
+7. [M4] Environment status labels (`ppco2_above_1h_limit`, `ppco2_above_7d_guidance`, `solar_storm_S1`..`S5`) per `synthetic-data.md` section 8. Kept separate from `/analyze`.
+8. [M3] Web: `src/api/` client, profile picker, Daily Check-in form.
+9. [M5] Web: Mission Overview, Health Trends (Recharts), mission-context panel, Flag Details panel.
+10. [M6] Demo script + walkthrough check.
+11. [M7] Save DONKI SEP and NOAA proton samples (commands in `data-sources.md`), then `providers/noaa_swpc.py` and `providers/donki.py`; add `NASA_API_KEY` to `.env.example`.
 
 ## Done
 
+- [M2] Migration `20261116000000_environment_types_and_mission_events.sql` (new measurement types, `mission_events` + RLS) and loader `supabase/load_synthetic.psql`; tested on local Postgres 16 (all 86,219 rows load, re-run safe).
 - [M2] Synthetic generator `synth-0.2.0` in [apps/api/app/synthetic/](../apps/api/app/synthetic/) with 21 pytest checks (determinism, V1 4033 guardrail, CO2 1 h/7 d, scenarios). Branch `ml/synthetic-generator`.
 - [M0] Scaffold: React/Vite web, FastAPI with `/health` and 501 `/analyze`, schema + RLS migration, docs, pinned deps and lockfiles.
 - Agent workflow docs: `AGENTS.md` and this file.
@@ -78,6 +78,7 @@ Ordered. Milestone in brackets. Take from the top unless you are told otherwise.
 
 Newest first. Format: `YYYY-MM-DD: what changed (area)`.
 
+- 2026-11-16: Migration 2 (measurement types, `mission_events`) and `supabase/load_synthetic.psql` loader; `data-model.md` updated (db).
 - 2026-11-16: Synthetic data generator `synth-0.2.0` (CREW-A to D, S0 to S7, 5 telemetry series at 5 min, 2 events), shared `app/limits.py`, pytest + 21 generator tests, `npm run synth` / `npm run test:api` (ml).
 - 2026-11-16: Aligned data plan with NASA-STD-3001, OCHMO-TB-020/004/030 and NOAA S-scale: official limits table, ppCO2 and proton flux streams, scenarios S5 to S7, environment status labels, demo vs live source split (docs).
 - 2026-11-15: Added `docs/synthetic-data.md`: source roles, schema change, check-in and telemetry generator spec (docs, ml).
