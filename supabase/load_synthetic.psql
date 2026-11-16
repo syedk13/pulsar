@@ -1,0 +1,27 @@
+-- Load the synthetic dataset into Supabase (or any Postgres with both migrations applied).
+-- Run from the repo root, after `npm run synth`:
+--   psql "$DATABASE_URL" -f supabase/load_synthetic.psql
+-- Replaces any rows with the same ids (the generator's ids are deterministic),
+-- so it is safe to re-run after regenerating. Everything runs in one transaction.
+
+\set ON_ERROR_STOP on
+
+begin;
+
+-- Clear previously loaded synthetic rows. Check-ins and anomaly results cascade from profiles.
+delete from public.crew_profiles        where is_fictional;
+delete from public.environment_readings where source = 'synthetic';
+delete from public.mission_events       where source = 'synthetic';
+
+\copy public.crew_profiles (id, user_id, profile_code, display_name, mission_label, baseline_metadata, is_fictional) from 'apps/api/app/synthetic/out/crew_profiles.csv' with (format csv, header true)
+\copy public.health_checkins (id, profile_id, recorded_at, sleep_duration_hours, mood_rating, resting_heart_rate, source, is_simulated, data_quality) from 'apps/api/app/synthetic/out/health_checkins.csv' with (format csv, header true)
+\copy public.environment_readings (id, recorded_at, source, instrument, measurement_type, value, unit, location_context, is_simulated, is_stale, source_retrieved_at, metadata) from 'apps/api/app/synthetic/out/environment_readings.csv' with (format csv, header true)
+\copy public.mission_events (id, event_type, level, start_time, end_time, source, source_event_id, link, is_simulated, metadata) from 'apps/api/app/synthetic/out/mission_events.csv' with (format csv, header true)
+
+commit;
+
+-- Row counts to compare with synthetic_manifest.json "row_counts".
+select 'crew_profiles' as table_name, count(*) from public.crew_profiles where is_fictional
+union all select 'health_checkins', count(*) from public.health_checkins where source = 'synthetic'
+union all select 'environment_readings', count(*) from public.environment_readings where source = 'synthetic'
+union all select 'mission_events', count(*) from public.mission_events where source = 'synthetic';
