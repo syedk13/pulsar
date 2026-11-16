@@ -2,27 +2,70 @@
 
 > Status: spec only. No generator code exists yet. Target home: `apps/api/app/synthetic/`.
 
-Everything here is **simulated demo data**. Ranges are shaped by published NASA and peer-reviewed figures (see Sources) but nothing is "NASA-calibrated." Never label a generated value as NASA data.
+Everything here is **simulated demo data**. Environment limits come from NASA-STD-3001, the OCHMO technical briefs and the NOAA space weather scales (section 2). Crew check-in ranges come from published spaceflight studies, because none of those standards set in-mission ranges or alert values for sleep, resting heart rate or mood. Never label a generated value as NASA or NOAA data.
 
 ## 1. Source roles (decided)
 
-| Source | Raw data we can ingest now? | Role in Pulsar | Do not |
+| Source | Direct hook? | Role in Pulsar | Do not |
 |---|---|---|---|
-| LSDA / Life Sciences Portal | **No.** Astronaut research data is released only after a data request, review and NASA IRB approval. | Background for which measures are credible (sleep, cardiovascular). Not used in the MVP. | Assume a public daily sleep, mood or RHR series exists. |
-| OSDR (biological studies, incl. Inspiration4) | **No** for our use. Only processed data is public; raw individual data needs approval, and it is omics/clinical samples from a 3-day flight, not daily check-ins. | Out of MVP scope. | Present it as check-in data. |
-| OSDR RadLab | **Yes, technically.** Public query API returning `absorbed_dose_rate`, `dose_equivalent_rate`, `flux` per instrument, module and timestamp. | Shape the synthetic radiation stream now. Optional later: cache one real day behind `app/providers/radlab.py`. | Treat module dose rate as a person's dose. Mix dose rate, dose equivalent and flux in one series. |
-| NASA PIMS (MAMS, SAMS-II) | **Not practical.** Archives are high-rate raw sensor files in a time/sensor folder tree that need signal processing. | Shape the synthetic quasi-steady acceleration stream. | Imply acceleration measures a body's response. |
-| DONKI | **Yes.** Simple JSON API (`FLR`, `SEP`, `CME`, `GST`, `RBE`, ...). | Optional event context ("SEP event during this interval"). Post-MVP. | Turn an event into a dose value. |
-| Curiosity RAD | Public archive, but **wrong environment** (Mars surface). | Optional "Mars surface" scenario scaling only. | Use its values as ISS or astronaut dose. |
-| NTRS | Documents, not data. | Evidence library for the Sources list and the pitch. | Expect telemetry. |
+| NASA-STD-3001 Vol 1 Rev C and Vol 2 Rev D | No (documents) | Official limits for **environment** context lines and generator guardrails (section 2) | Use them as crew health or diagnostic thresholds |
+| OCHMO-TB-020 Design for Ionizing Radiation Protection (Rev G, Jun 2025) | No (document) | Radiation limits and monitoring requirements (section 2) | Compare an instrument reading to a personal-dose limit |
+| OCHMO-TB-004 Carbon Dioxide | No (document) | Cabin ppCO2 limit and 7-day headache-risk guidance (section 2) | Use CO2 to explain a crew member's health flag |
+| Bone loss brief (published as OCHMO-TB-030; NASA's file at that URL now reads OCHMO-MTB-013 Rev D, Feb 2026) | No (document) | Explains why bone density is **not** modeled (section 9) | Simulate in-flight bone density |
+| DONKI | **Yes, optional** (`SEP`, `FLR`, `CME`, `GST`) | Space weather event context in live mode; a saved sample replays in demo mode | Turn an event into a dose value |
+| NOAA SWPC GOES integral protons + S-scale | **Yes, optional** (5-minute ≥10 MeV flux) | Solar radiation storm level (S1 to S5) as context in live mode; simulated in demo mode | Treat flux at geostationary orbit as ISS or crew dose |
+| OSDR RadLab | Technically yes | Shapes the synthetic module radiation stream | Treat module dose rate as personal dose |
+| NASA PIMS (MAMS, SAMS-II) | Not practical (raw sensor archives) | Shapes the synthetic acceleration stream | Imply acceleration measures a body's response |
+| LSDA, OSDR human data (Inspiration4) | No (gated, needs approval) | Out of scope | Assume a public daily crew series exists |
+| Curiosity RAD | Wrong environment | Optional Mars scenario only | Use as ISS or astronaut dose |
+| NTRS | Documents | Evidence library | Expect telemetry |
 
-**Conclusion:** no public raw dataset fits daily crew check-ins. Health data is 100% synthetic. Environment data is synthetic, shaped by published ISS ranges. Live NASA adapters are optional post-MVP work (M7).
+**Core rule:** demo mode uses only the local generator and saved samples, with no keys and no network. Live mode adds DONKI and NOAA as optional context. Crew health data is always synthetic.
 
-## 2. Schema changes needed
+## 2. Official reference limits
 
-The current migration mostly fits. Keep the existing column names (`recorded_at`, `mood_rating`, `resting_heart_rate`); do not rename to other proposals like `checkin_at` or `mood_score`.
+These are the only official numbers Pulsar uses. Each row says what it actually applies to, so we never compare the wrong quantity.
 
-1. **Required: widen `environment_readings.measurement_type`.** Today it only allows `acceleration` and `radiation`, which would mix absorbed dose rate and dose equivalent rate in one type. New migration:
+### Radiation (NASA-STD-3001 Vol 1 Rev C, via OCHMO-TB-020 Rev G)
+
+| Req. | Limit | Applies to | Pulsar use |
+|---|---|---|---|
+| V1 4029 | ALARA, no number | All crew exposure | Copy only |
+| V1 4030 | Career effective dose < **600 mSv** | A person's career effective dose | **Not used.** Our data is a module instrument reading, not personal effective dose |
+| V1 4031 | Design reference SPE < **250 mSv** effective dose | Vehicle shielding design | **Not used** for the same reason |
+| V1 4032 | Nuclear sources < **20 mSv per mission year** | Onboard nuclear technology | Not applicable |
+| V1 4033 | GCR design dose rate < **1.3 mSv/day** free space, < **0.9 mSv/day** planetary surface (habitats used > 60 days) | Vehicle design | Generator sanity ceiling only (section 7a), never a live flag |
+| V2 6164 | Alert when exposure rates exceed "predefined thresholds" | Monitoring system | No values are published, so Pulsar shows **no official radiation alert** |
+
+The current brief gives no organ-specific 30-day or 1-year limits, so we do not use older tables that do.
+
+### Carbon dioxide (OCHMO-TB-004; requirement is in **Vol 2**, not Vol 1)
+
+| Source | Limit | Averaging | Pulsar use |
+|---|---|---|---|
+| V2 6004 | ppCO2 **≤ 3 mmHg** in the habitable volume | 1-hour mean | Environment flag `ppco2_above_1h_limit` |
+| TB-004 guidance (not a requirement) | **< 2.5 mmHg** keeps headache risk below 1% | 7-day mean | Environment flag `ppco2_above_7d_guidance` |
+| TB-004 historical | ISS range **1 to 9 mmHg** | n/a | Generator bound |
+
+TB-004 also lists anecdotal symptoms by CO2 level. Pulsar does **not** show them next to crew data.
+
+### Solar radiation storms (NOAA S-scale, ≥10 MeV integral proton flux at geostationary orbit)
+
+| Level | Flux (pfu) | Label |
+|---|---|---|
+| S1 | ≥ 10 | Minor |
+| S2 | ≥ 100 | Moderate |
+| S3 | ≥ 1,000 | Strong |
+| S4 | ≥ 10,000 | Severe |
+| S5 | ≥ 100,000 | Extreme |
+
+1 pfu = 1 particle per cm²·s·sr. A storm starts when the flux first reaches 10 pfu and ends at the last reading at or above 10 pfu. NASA's radiation brief does not map S-levels to crew dose, so Pulsar shows the S-level as space weather context only.
+
+## 3. Schema changes needed
+
+Keep existing column names (`recorded_at`, `mood_rating`, `resting_heart_rate`).
+
+1. **Required: widen `environment_readings.measurement_type`** (new migration):
 
    ```sql
    alter table public.environment_readings
@@ -31,151 +74,175 @@ The current migration mostly fits. Keep the existing column names (`recorded_at`
      add constraint environment_readings_measurement_type_check
      check (measurement_type in (
        'acceleration_quasi_steady', 'acceleration_vibratory',
-       'absorbed_dose_rate', 'dose_equivalent_rate', 'particle_flux'));
+       'absorbed_dose_rate', 'dose_equivalent_rate', 'particle_flux',
+       'ppco2', 'proton_flux_ge10mev'));
    ```
-   Update `docs/data-model.md` in the same commit. (Check the real constraint name with `\d environment_readings` if the migration was applied with a different one.)
+   Update `docs/data-model.md` in the same commit.
 
-2. **No change to `health_checkins`.** Put generator metadata in the existing `data_quality` jsonb (section 4).
+2. **Recommended now: `mission_events` table** for DONKI events, NOAA S-level storms and simulated equivalents: `id`, `event_type` (`SEP`, `FLR`, `CME`, `GST`, `S_SCALE`, `CO2_EXCURSION`), `level` (e.g. `S2`, `X1.2`), `start_time`, `end_time`, `source` (`donki`, `noaa_swpc`, `synthetic`), `source_event_id` (DONKI `activityID`), `link`, `is_simulated`, `metadata` jsonb. Read-only for signed-in users, server writes only.
 
-3. **Optional, post-MVP:** a `mission_events` table for DONKI-style events (`event_type`, `start_time`, `end_time`, `source`, `source_event_id`, `link`, `is_simulated`). Do not store events in `environment_readings`.
+3. **No change to `health_checkins`.** Generator metadata goes in `data_quality`.
 
-## 3. Mission frame
+## 4. Mission frame
 
 | Setting | Value |
 |---|---|
-| Seed | `2026` (one `numpy.random.default_rng(seed)`; derive per-profile streams with `rng.spawn`) |
+| Seed | `2026` (one `numpy.random.default_rng(seed)`; per-stream children via `rng.spawn`) |
 | Mission length | 60 days |
 | Mission start | `2026-09-01T00:00:00Z` (all timestamps UTC) |
 | Mission label | `Pulsar Demo Mission (simulated)` |
-| Generator version | `synth-0.1.0`, written into every row's metadata |
+| Generator version | `synth-0.2.0`, in every row's metadata |
 
-## 4. Daily crew check-ins (`health_checkins`)
+## 5. Daily crew check-ins (`health_checkins`)
 
-One row per profile per day, `recorded_at` = day start + 07:00 UTC ± uniform 30 min (morning, on waking).
+None of the listed standards define in-mission values or alert thresholds for these fields, so ranges come from published studies, and flags stay **relative to each person's own baseline** (section 8).
 
-| Field | Type / unit | Per-profile baseline | Day-to-day noise | Clip | Rounding |
+One row per profile per day, `recorded_at` = day start + 07:00 UTC ± uniform 30 min.
+
+| Field | Unit | Per-profile baseline | Day-to-day noise | Clip | Rounding |
 |---|---|---|---|---|---|
-| `sleep_duration_hours` | hours, previous sleep period | uniform 5.6 to 7.0 | normal, SD 0.6 | 3.0 to 9.5 | 0.1 h |
+| `sleep_duration_hours` | hours | uniform 5.6 to 7.0 | normal, SD 0.6 | 3.0 to 9.5 | 0.1 h |
 | `resting_heart_rate` | bpm, morning resting | uniform 52 to 66 | normal, SD 2.5 | 40 to 110 | integer |
-| `mood_rating` | 1 to 5 scale below | latent uniform 3.4 to 4.2 | normal, SD 0.5 | 1 to 5 | integer |
+| `mood_rating` | scale below | latent uniform 3.4 to 4.2 | normal, SD 0.5 | 1 to 5 | integer |
 
-Couplings (demo assumptions, keep them weak so single-indicator flags stay explainable):
-- RHR: +1 bpm per hour of sleep below the profile's sleep baseline.
-- Mood (latent, before rounding): +0.3 per hour of sleep above baseline, −0.3 per hour below.
+Couplings (demo assumptions): RHR +1 bpm per hour of sleep below baseline; latent mood ±0.3 per hour of sleep above or below baseline.
 
-Why these ranges: in a large actigraphy study, ISS astronauts averaged about 6.1 h of sleep in flight despite 8.5 h scheduled, and sleep was about 1 h shorter when circadian timing was misaligned (5.4 vs 6.4 h). ISS cardiovascular studies found heart rate roughly unchanged from preflight, so RHR uses ordinary fit-adult values. Mood has **no** NASA calibration; it is our own scale.
+Basis: ISS astronauts averaged about 6.1 h of sleep in flight (8.5 h scheduled) and about 1 h less when circadian timing was misaligned; long-duration ISS studies found heart rate roughly unchanged from preflight. Mood has no NASA calibration.
 
-**Mood scale** `pulsar-mood-1to5-v1` (show the anchors in the check-in UI):
+**Mood scale** `pulsar-mood-1to5-v1`: 1 Very low, 2 Low, 3 Okay, 4 Good, 5 Very good.
 
-| Value | Label |
-|---|---|
-| 1 | Very low |
-| 2 | Low |
-| 3 | Okay |
-| 4 | Good |
-| 5 | Very good |
+**Fixed:** `source = 'synthetic'`, `is_simulated = true`.
 
-**Fixed columns:** `source = 'synthetic'`, `is_simulated = true`.
-
-**`data_quality` jsonb:**
+**`data_quality`:**
 ```json
-{
-  "generator_version": "synth-0.1.0",
-  "scenario_id": "S1_sleep_decline",
-  "hr_kind": "resting_morning",
-  "mood_scale": "pulsar-mood-1to5-v1",
-  "missing_fields": []
-}
+{"generator_version": "synth-0.2.0", "scenario_id": "S1_sleep_decline",
+ "hr_kind": "resting_morning", "mood_scale": "pulsar-mood-1to5-v1", "missing_fields": []}
 ```
 
-**Missing data (deterministic from the seed):**
-- 6% of days per profile have no row at all (skip days inside a scenario's key window so the demo stays clean).
-- 2% of rows have one field set to `null`, listed in `missing_fields`.
+**Missing data:** 6% of days per profile have no row (never inside a scenario's key window); 2% of rows have one `null` field, listed in `missing_fields`.
 
-## 5. Profiles and scenarios
+## 6. Profiles and scenarios
 
-| Profile | Scenario id | What happens | Expected `/analyze` result |
-|---|---|---|---|
-| `CREW-A` | `S0_stable` | Baseline only | `within_baseline` nearly every day |
-| `CREW-B` | `S1_sleep_decline` | Days 36 to 50: sleep mean drops linearly by 1.5 h; mood follows via coupling; recovers days 51 to 55 | `worth_reviewing` from about day 42, explanation names sleep (and mood) |
-| `CREW-C` | `S2_rhr_trend` | Days 42 to 49: RHR rises 1.5 bpm/day to +10 bpm, sleep unchanged | `worth_reviewing`, explanation names RHR only |
-| `CREW-D` | `S3_new_profile` | Only the last 5 days of data exist | `insufficient_data` ("collecting baseline") |
-| all | `S4_schedule_shift` | Days 20 and 21: sleep −1.0 h for everyone (modeled on the misalignment effect) | Short dip; good test that one or two bad nights are handled sensibly |
+Health scenarios and environment scenarios are placed on **different days** on purpose, so the demo never suggests the environment caused a health change.
 
-Use `display_name` values like `Crew A (fictional)`, `is_fictional = true`. Keep the true generator parameters in a manifest file (`synthetic_manifest.json`), **not** in `baseline_metadata`, so the model cannot read the answer key.
+| Id | Who | Days | What happens | Expected result |
+|---|---|---|---|---|
+| `S0_stable` | CREW-A | all | Baseline only | `within_baseline` |
+| `S1_sleep_decline` | CREW-B | 36 to 50 | Sleep drops linearly by 1.5 h, mood follows; recovers 51 to 55 | `worth_reviewing` from about day 42 (sleep, mood) |
+| `S2_rhr_trend` | CREW-C | 42 to 49 | RHR +1.5 bpm/day to +10, sleep unchanged | `worth_reviewing` (RHR only) |
+| `S3_new_profile` | CREW-D | 56 to 60 | Only 5 days of data | `insufficient_data` |
+| `S4_schedule_shift` | all | 20 to 21 | Sleep −1.0 h for everyone | Short dip |
+| `S5_solar_storm` | environment | 27 to 28 | Simulated S2 storm (section 7d) and matching `mission_events` row | Space weather banner "S2 Moderate (simulated)" |
+| `S6_co2_excursion` | environment | 12 | Simulated CO2 scrubber slowdown (section 7c) | `ppco2_above_1h_limit` for a few hours |
+| `S7_stale_feed` | environment | 33 | 6-hour gap, readings marked stale | Freshness label demo |
 
-Baseline rule for the ML side (proposal, record the final choice in `api-contract.md`): rolling 14-day median per indicator, minimum 7 check-ins before scoring, otherwise `insufficient_data`.
+Profiles: `CREW-A` to `CREW-D`, `display_name` like `Crew A (fictional)`, `is_fictional = true`. True generator parameters go in `synthetic_manifest.json`, **not** in `baseline_metadata`.
 
-## 6. Environment telemetry (`environment_readings`)
+## 7. Environment telemetry (`environment_readings`)
 
-Separate stream, same mission clock, never joined into health rows. Sample every **5 minutes** (288 rows/day per series, about 17,000 per series for 60 days). Charts should show hourly mean and max.
+Separate stream, same mission clock, every **5 minutes** (matches the GOES 5-minute averages). Charts show hourly mean and max.
 
-### 6a. Radiation: `absorbed_dose_rate` (unit `uGy/h`)
+### 7a. Module radiation
 
-Model = background + South Atlantic Anomaly (SAA) passes + noise.
-
-| Component | Spec |
-|---|---|
-| Background (cosmic rays) | 2 to 6 uGy/h, sinusoid with the 92-minute orbit (latitude effect) |
-| SAA passes | One block per day of 5 to 6 consecutive orbits crossing the SAA, each about 15 minutes; peak 50 to 300 uGy/h with a triangular shape. Outside the block, no SAA passes for the rest of the day |
-| Noise | multiplicative, lognormal sigma 0.1 |
-| Daily total target | 150 to 290 uGy/day (check after generating; scale peaks if outside) |
-| Optional event | `S5_sep_context` days 27 to 28: background ×2 for 24 h, with a matching simulated event record if `mission_events` exists. Keep it away from the health scenario windows so the demo never suggests a cause |
-
-Why: inside-ISS daily absorbed dose rates in the literature run roughly 74 to 215 uGy/day, Columbus DOSTEL readings reached 286 uGy/day, crew badges usually record under 0.3 mGy/day, and SAA protons cause most of the absorbed dose, with hourly rates spanning about 5 to 500 uGy/h.
-
-### 6b. Radiation: `dose_equivalent_rate` (unit `uSv/h`)
-
-Same timestamps as 6a. `value = absorbed × Q` with Q uniform 2.0 to 2.5 per sample (Columbus figures: 647 uSv/day equivalent vs 286 uGy/day absorbed, ratio about 2.3). Real Q differs by radiation source; constant-ish Q is a documented simplification.
-
-Label in the UI: "Module dose equivalent rate (instrument reading, not personal dose)."
-
-### 6c. Acceleration: `acceleration_quasi_steady` (unit `micro-g`)
+**`absorbed_dose_rate` (uGy/h)** = background + South Atlantic Anomaly (SAA) passes + noise.
 
 | Component | Spec |
 |---|---|
-| Value stored | Vector magnitude in micro-g |
-| Axes (in `metadata`) | x: mean 1.0, SD 0.2; y and z: mean 0, SD 0.4 (micro-g) |
-| Typical magnitude | about 1.0 to 1.3 micro-g |
-| Venting transient | every 2 to 3 days, 10 to 20 minutes, +3 to +4 micro-g on y and z |
-| Frequency band (metadata) | `< 0.01 Hz` |
+| Background | 2 to 6 uGy/h, sinusoid with the 92-minute orbit |
+| SAA | One daily block of 5 to 6 consecutive orbits, each pass about 15 min, triangular peak 50 to 300 uGy/h |
+| Noise | multiplicative lognormal, sigma 0.1 |
+| During `S5` | background × 1.5 while simulated ≥10 MeV flux ≥ 10 pfu (demo assumption) |
+| Daily total target | 150 to 290 uGy/day (scale that day's SAA peaks if a day falls outside) |
 
-Why: PIMS reports put the ISS quasi-steady magnitude around 1.1 micro-g, with venting transients of 3 to 4 micro-g; NASA defines the quasi-steady regime as content below 0.01 Hz.
+**`dose_equivalent_rate` (uSv/h)** = absorbed × Q, Q uniform 2.0 to 2.5.
 
-`acceleration_vibratory` (SAMS-like g-jitter, 0.01 to 300 Hz) is **out of MVP scope**. It needs frequency-band choices we have not sourced.
+**Guardrail (V1 4033):** the generator's daily dose-equivalent total must stay well under 1.3 mSv/day (expected: about 0.3 to 0.7 mSv/day). A run that breaks this fails its test. This is a sanity check on the generator, **not** a comparison Pulsar shows users, because V1 4033 is a vehicle design value for free-space GCR in effective dose.
 
-### 6d. Common environment fields
+UI label: "Module dose equivalent rate (instrument reading, not personal dose)."
 
-| Column | Value |
+### 7b. `acceleration_quasi_steady` (micro-g)
+
+Magnitude stored as `value`; axes in metadata (x mean 1.0 SD 0.2, y and z mean 0 SD 0.4). Venting transients every 2 to 3 days, 10 to 20 min, +3 to +4 micro-g on y and z. Band `< 0.01 Hz`. No limit in the listed documents, so display only. `acceleration_vibratory` stays out of MVP.
+
+### 7c. `ppco2` (mmHg), cabin CO2 partial pressure
+
+| Component | Spec |
 |---|---|
-| `source` | `synthetic` |
-| `instrument` | `sim-dosimeter` or `sim-accelerometer` (never a real instrument name on its own) |
-| `location_context` | `US Lab (simulated)` / `Columbus (simulated)` |
-| `is_simulated` | `true` |
-| `is_stale` | `false`, except one 6-hour gap with `is_stale = true` on day 33 to demo freshness labels |
-| `source_retrieved_at` | same as `recorded_at` |
-| `metadata` | `{"generator_version": "synth-0.1.0", "modeled_on": "published ISS ranges, see docs/synthetic-data.md", "axes": {...}, "band": "<0.01 Hz", "component": "background|saa|event"}` |
+| Nominal level | per-mission baseline uniform 1.8 to 2.2 |
+| Daily pattern | +0.3 during crew wake hours (07:00 to 21:30 UTC), +0.2 extra during two 1-hour exercise blocks, −0.2 during sleep |
+| Noise | normal, SD 0.08 |
+| Clip | 1.0 to 9.0 (TB-004 historical ISS range) |
+| `S6` excursion | Day 12, 10:00: linear rise to 4.0 over 6 h, hold 2 h, recover to nominal over 4 h |
+| Checks | 1-hour means stay ≤ 3.0 outside `S6`; 7-day means stay < 2.5 for the whole mission, so only the 1-hour label fires in the demo |
 
-## 7. Output and loading
+`instrument = sim-co2-monitor`, `location_context = US Lab (simulated)`.
 
-- Generator writes `crew_profiles.csv`, `health_checkins.csv`, `environment_readings.csv` and `synthetic_manifest.json` to `apps/api/app/synthetic/out/` (git-ignored; regenerate from the seed).
-- A seed script loads them into Supabase with the server key. Same seed must produce byte-identical files; add a test for that.
-- Rows total: about 230 check-ins, about 52,000 environment readings (3 series).
+### 7d. `proton_flux_ge10mev` (pfu), NOAA-style space weather
+
+| Component | Spec |
+|---|---|
+| Background | lognormal, median 0.3 pfu, sigma 0.3 (demo assumption, below S1) |
+| `S5` storm | Day 27, 06:00: log-linear rise to 180 pfu (S2) over 6 h, then exponential decay, e-folding 12 h, back under 10 pfu on day 28 |
+| Location | `Geostationary orbit (GOES-like, simulated)` |
+| Event row | `mission_events`: `event_type = S_SCALE`, `level = S2`, start = first 5-min value ≥ 10 pfu, end = last value ≥ 10 pfu, `source = synthetic` |
+
+The S-level is derived with the same thresholds as live NOAA data (section 2), so demo and live mode share code.
+
+### 7e. Common fields
+
+`source = synthetic`, `is_simulated = true`, `is_stale = false` (except `S7`), `source_retrieved_at = recorded_at`, `metadata = {"generator_version": "synth-0.2.0", "modeled_on": "...", "component": "background|saa|event|nominal|excursion"}`. Instruments: `sim-dosimeter`, `sim-accelerometer`, `sim-co2-monitor`, `sim-proton-monitor`.
+
+## 8. Flag rules
+
+Two separate kinds of flags, never merged into one score.
+
+**Crew health flags (personal baseline, from `/analyze`):**
+- Baseline: rolling 14-day median per indicator; at least 7 check-ins, otherwise `insufficient_data`.
+- Score with Isolation Forest on deviations from the person's own baseline; explain with per-indicator observed vs baseline.
+- No official or medical thresholds. Environment readings are not model inputs.
+
+**Environment status labels (official limits, computed by the API from telemetry):**
+
+| Label | Rule | Source |
+|---|---|---|
+| `ppco2_above_1h_limit` | rolling 1-hour mean ppCO2 > 3.0 mmHg | V2 6004 |
+| `ppco2_above_7d_guidance` | rolling 7-day mean ppCO2 ≥ 2.5 mmHg | TB-004 guidance |
+| `solar_storm_S1` to `S5` | 5-minute ≥10 MeV flux at the S-scale thresholds | NOAA S-scale |
+| (none for radiation dose) | No published alert value | V2 6164 |
+
+Environment labels appear on the mission-context panel with their source, never on a crew member's flag explanation.
+
+## 9. Not modeled
+
+- **Bone mineral density.** The brief states no system measures bone density in flight; requirements are pre- and post-mission DXA (pre-mission T-score ≥ −1.0; countermeasures keep hip and spine at or above 95% of pre-mission values and the femoral neck at or above 90%). Simulating in-flight BMD would invent a measurement that does not exist operationally.
+- **Personal radiation dose against the 600 mSv career or 250 mSv SPE limits.** Needs personal effective dose, which a module reading is not.
+- **Organ-specific short-term radiation limits.** Not in the current brief.
+
+## 10. Output and loading
+
+- Generator writes `crew_profiles.csv`, `health_checkins.csv`, `environment_readings.csv`, `mission_events.csv` and `synthetic_manifest.json` to `apps/api/app/synthetic/out/` (git-ignored).
+- Saved real samples for live-mode adapters go in `apps/api/app/providers/samples/` (committed, small, with retrieval date): one DONKI SEP response and one NOAA `integral-protons-1-day.json`. See `docs/data-sources.md`.
+- Same seed must produce byte-identical files; add a test, plus tests for the guardrail and checks in sections 7a and 7c.
+- About 230 check-ins, about 86,000 environment readings (5 series × 17,280), 2 simulated events.
 
 ## Sources
 
-- Barger et al. 2014, sleep in astronauts (Lancet Neurology): https://pmc.ncbi.nlm.nih.gov/articles/PMC4188436
-- Barger 2017 slides, aligned vs misaligned sleep: https://vtti.whos.prod.es.cloud.vt.edu/PDFs/fatigue-2017/thursday-am/keynote/Barger.pdf
-- Cardiovascular regulation on long ISS missions (summary): https://phys.org/news/2012-03-benefits-space.pdf
-- ISS crew dose standards review: https://pmc.ncbi.nlm.nih.gov/articles/PMC10919966
-- DOSIS 3D / DOSTEL in Columbus: https://core.ac.uk/download/84275623.pdf
-- R3D on ISS, SAA vs GCR dose: https://pmc.ncbi.nlm.nih.gov/articles/PMC3371259
-- SAA dose rate map (5 to 500 uGy/h): https://www.swsc-journal.org/articles/swsc/full_html/2017/01/swsc160046/F9.html
+- NASA-STD-3001 Vol 1 Rev C: https://standards.nasa.gov/sites/default/files/standards/NASA/C//nasa-std-3001-vol-1-rev-c-signature.pdf
+- OCHMO-TB-020 Design for Ionizing Radiation Protection: https://www.nasa.gov/sites/default/files/atoms/files/radiation_protection_technical_brief_ochmo.pdf
+- OCHMO-TB-004 Carbon Dioxide: https://www.nasa.gov/ochmo-tb-004-carbon-dioxide-2/
+- Bone loss brief: https://www.nasa.gov/wp-content/uploads/2023/12/ochmo-tb-030-bone-loss.pdf
+- NOAA S-scale definition: https://glossarystaging.ametsoc.net/wiki/S-scale
+- NOAA solar radiation storm start/end: https://webarchive.library.unt.edu/web/20170119080503/http://www.swpc.noaa.gov/phenomena/solar-radiation-storm
+- NOAA GOES proton flux product and JSON: https://www.spaceweather.gov/products/goes-proton-flux
+- DONKI web services: https://ccmc.gsfc.nasa.gov/tools/DONKI
+- Barger et al. 2014, astronaut sleep: https://pmc.ncbi.nlm.nih.gov/articles/PMC4188436
+- Barger 2017 slides: https://vtti.whos.prod.es.cloud.vt.edu/PDFs/fatigue-2017/thursday-am/keynote/Barger.pdf
+- Cardiovascular regulation on long ISS missions: https://phys.org/news/2012-03-benefits-space.pdf
+- DOSIS 3D / DOSTEL: https://core.ac.uk/download/84275623.pdf
+- R3D ISS dose by source: https://pmc.ncbi.nlm.nih.gov/articles/PMC3371259
+- SAA dose rate map: https://www.swsc-journal.org/articles/swsc/full_html/2017/01/swsc160046/F9.html
 - RadLab data API: https://visualization.osdr.nasa.gov/radlab/gui/data-api
 - PIMS quasi-steady measurements: https://corpora.tika.apache.org/base/docs/govdocs1/116/116835.pdf
 - NASA acceleration environment guide: https://www.nasa.gov/wp-content/uploads/2016/06/acceleration-environment-iss-mini-book_detail-508c.pdf
-- PIMS archive structure: https://ntrs.nasa.gov/api/citations/20120012936/downloads/20120012936.pdf
-- DONKI web services: https://ccmc.gsfc.nasa.gov/tools/DONKI
 - LSDA data requests: https://nlsp.nasa.gov/explore/lsdahome/datarequest
-- Inspiration4 data in OSDR: https://pmc.ncbi.nlm.nih.gov/articles/PMC11094041
-- Curiosity RAD surface dose (Hassler et al. 2014): https://ntrs.nasa.gov/citations/20180007641
+- Inspiration4 in OSDR: https://pmc.ncbi.nlm.nih.gov/articles/PMC11094041

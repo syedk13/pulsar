@@ -35,7 +35,14 @@ The browser calls the FastAPI service for analysis (`POST /analyze`, currently 5
 Not used. Edge Functions are TypeScript/Deno; Pulsar's server logic lives in the Python FastAPI service instead.
 
 ## Data-source isolation
-Future NASA integrations (see `data-sources.md`) will live in a dedicated provider-adapter module inside `apps/api` (e.g. `app/providers/`), each normalising records into `environment_readings` with source, unit, timestamp, freshness and simulated flags. Mission-context telemetry is always kept separate from personal check-in data and is never presented as an individual's dose.
+Two modes, chosen by `DEMO_MODE`:
+
+- **Demo mode (default):** every metric comes from the local generator (`app/synthetic/`) plus saved samples. No keys, no network.
+- **Live mode:** adds two optional hooks in `app/providers/`: NOAA SWPC GOES proton flux (S-scale level) and DONKI space weather events. Everything else stays generated.
+
+Adapters normalise records into `environment_readings` or `mission_events` with source, unit, timestamp, freshness and simulated flags. Mission-context data is always kept separate from personal check-in data and is never presented as an individual's dose.
+
+Two flag layers, never merged: crew health flags from `/analyze` use personal baselines only; environment status labels (ppCO2 vs NASA-STD-3001 V2 6004, NOAA S-level) are computed from telemetry and shown on the mission-context panel. Full metric-by-source table: `data-sources.md`. Limits and generator: `synthetic-data.md`.
 
 ## Deployment options (not deployed)
 - **Frontend:** Vercel — root directory `apps/web`, build `npm run build`, output `dist`, set `VITE_*` env vars.
