@@ -2,7 +2,7 @@ import { MOOD_LABELS } from '../checkin/validation'
 import { formatUtc } from '../lib/format'
 import type { HealthCheckin } from '../lib/types'
 
-function ProvenanceBadge({ row }: { row: HealthCheckin }) {
+export function ProvenanceBadge({ row }: { row: HealthCheckin }) {
   if (row.is_simulated || row.source === 'synthetic') {
     return (
       <span className="rounded bg-amber-100 px-2 py-0.5 text-xs text-amber-900">
@@ -14,7 +14,7 @@ function ProvenanceBadge({ row }: { row: HealthCheckin }) {
   return <span className="rounded bg-emerald-100 px-2 py-0.5 text-xs text-emerald-900">{label}</span>
 }
 
-function Value({ value, unit }: { value: number | null; unit: string }) {
+export function Value({ value, unit }: { value: number | null; unit: string }) {
   if (value === null) return <span className="text-slate-400 italic">missing</span>
   return (
     <span>

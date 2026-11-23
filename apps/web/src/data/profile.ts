@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 import type { CrewProfile } from '../lib/types'
-import { describeDbError } from './errors'
+import { toDbError } from './errors'
 
 /**
  * The crew profile linked to a signed-in account, or null if the account is not linked.
@@ -16,6 +16,6 @@ export async function getOwnProfile(
     .select('id, profile_code, display_name, mission_label, is_fictional')
     .eq('user_id', userId)
     .maybeSingle<CrewProfile>()
-  if (error) throw new Error(describeDbError(error))
+  if (error) throw toDbError(error)
   return data
 }

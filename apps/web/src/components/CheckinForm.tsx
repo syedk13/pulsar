@@ -9,6 +9,7 @@ import {
   validateCheckin,
 } from '../checkin/validation'
 import { createCheckin } from '../data/checkins'
+import { DbError, UNIQUE_VIOLATION } from '../data/errors'
 import type { CheckinField, HealthCheckin } from '../lib/types'
 
 type Errors = Partial<Record<CheckinField | 'form', string>>
@@ -16,10 +17,14 @@ type Errors = Partial<Record<CheckinField | 'form', string>>
 interface Props {
   client: SupabaseClient
   profileId: string
+  /** True when today's check-in exists (or history is still loading). */
+  disabled: boolean
   onSaved: (row: HealthCheckin) => void
+  /** The database rejected the insert because today's check-in already exists (23505). */
+  onAlreadyCheckedIn: () => void
 }
 
-export function CheckinForm({ client, profileId, onSaved }: Props) {
+export function CheckinForm({ client, profileId, disabled, onSaved, onAlreadyCheckedIn }: Props) {
   const [values, setValues] = useState<CheckinFormValues>(EMPTY_FORM)
   const [errors, setErrors] = useState<Errors>({})
   const [submitting, setSubmitting] = useState(false)
@@ -32,7 +37,7 @@ export function CheckinForm({ client, profileId, onSaved }: Props) {
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault()
-    if (submitting) return
+    if (submitting || disabled) return
     setSubmitError(null)
     const result = validateCheckin(values)
     if (!result.ok) {
@@ -46,6 +51,12 @@ export function CheckinForm({ client, profileId, onSaved }: Props) {
       setValues(EMPTY_FORM)
       onSaved(saved)
     } catch (err) {
+      if (err instanceof DbError && err.code === UNIQUE_VIOLATION) {
+        // Not a failure to report: the page shows "already checked in today" and re-reads.
+        setValues(EMPTY_FORM)
+        onAlreadyCheckedIn()
+        return
+      }
       setSubmitError(err instanceof Error ? err.message : 'Could not save the check-in.')
     } finally {
       setSubmitting(false)
@@ -54,7 +65,7 @@ export function CheckinForm({ client, profileId, onSaved }: Props) {
 
   return (
     <form noValidate onSubmit={onSubmit} className="space-y-5" aria-busy={submitting}>
-      <fieldset disabled={submitting} className="space-y-5">
+      <fieldset disabled={submitting || disabled} className="space-y-5">
         <Field
           label="Sleep last night"
           unit="hours"
@@ -145,7 +156,7 @@ export function CheckinForm({ client, profileId, onSaved }: Props) {
       )}
       <button
         type="submit"
-        disabled={submitting}
+        disabled={submitting || disabled}
         className="rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
       >
         {submitting ? 'Saving…' : 'Save check-in'}

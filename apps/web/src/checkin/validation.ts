@@ -86,7 +86,11 @@ export function validateCheckin(values: CheckinFormValues): ValidationResult {
   }
 }
 
-/** Build the insert row. Provenance is set explicitly, never left to column defaults. */
+/**
+ * Build the insert row. Provenance is set explicitly, never left to column defaults.
+ * `recorded_at` is required by the column, but for signed-in inserts the database replaces it
+ * with server time (migration 4 trigger); the saved row returned by the insert has the real value.
+ */
 export function buildFormCheckin(
   profileId: string,
   parsed: ParsedCheckin,

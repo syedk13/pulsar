@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 import type { FormCheckinInsert, HealthCheckin } from '../lib/types'
-import { describeDbError } from './errors'
+import { toDbError } from './errors'
 
 const COLUMNS =
   'id, profile_id, recorded_at, sleep_duration_hours, mood_rating, resting_heart_rate, source, is_simulated, data_quality, created_at'
@@ -19,7 +19,7 @@ export async function listCheckins(
     .order('recorded_at', { ascending: false })
     .limit(limit)
     .overrideTypes<HealthCheckin[], { merge: false }>()
-  if (error) throw new Error(describeDbError(error))
+  if (error) throw toDbError(error)
   return data ?? []
 }
 
@@ -33,6 +33,6 @@ export async function createCheckin(
     .insert(row)
     .select(COLUMNS)
     .single<HealthCheckin>()
-  if (error) throw new Error(describeDbError(error))
+  if (error) throw toDbError(error)
   return data
 }

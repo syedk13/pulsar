@@ -71,7 +71,7 @@ Ordered. Milestone in brackets. Take from the top unless you are told otherwise.
 | Brief numbering | Note | NASA's TB-030 bone file now reads OCHMO-MTB-013 Rev D (Feb 2026); TB-020 is "Design for Ionizing Radiation Protection", Rev G. Recheck revisions before citing in the pitch. |
 | `/analyze` trigger | Decision | Called by the web after each check-in, or batch over all profiles? |
 | Supabase client crashes without env | Fixed | `supabase` is `null` when env is missing; the app shows a configuration message. |
-| One check-in per day? | Decision | The form allows several per day (it notes an existing one). `/analyze` counts check-ins, so decide in M4 whether to keep only the latest per day. |
+| One check-in per day | Decided | One per crew profile per UTC day, enforced by migration 4 (unique index; app inserts stamped with server time). The web form locks once today's check-in exists and treats `23505` as "You’ve already checked in today (UTC)". |
 | Profile picker | Dropped | Demo uses sign-in, so the profile comes from `crew_profiles.user_id`; no picker. |
 | `/analyze` returns 422 on bad body | Note | Body is validated before the 501. Fine for now; keep in mind for tests. |
 | Offline-tolerant check-ins | Later | Desirable for long missions; not in the MVP. |
@@ -81,6 +81,7 @@ Ordered. Milestone in brackets. Take from the top unless you are told otherwise.
 Newest first. Format: `YYYY-MM-DD: what changed (area)`.
 
 - 2026-11-23: Web check-in flow: email sign-in, own crew profile lookup, validated Daily Check-in form (writes `self_report`, `is_simulated = false`), recent history with provenance badges; guarded Supabase client (web).
+- 2026-11-23: Check-in form respects the one-per-UTC-day cap: shows today's check-in and disables the form; a `23505` response shows the same message and re-reads history (web).
 - 2026-11-23: Migration 3 (form check-ins can't be `synthetic`, `is_simulated` defaults to false); loader now replaces only synthetic rows and keeps profiles, account links and form check-ins; baseline defined as last 14 check-ins (db, docs).
 
 - 2026-11-21: Supabase project live, both migrations applied, synthetic data loaded; demo uses sign-in. M1 and M2 done (db).

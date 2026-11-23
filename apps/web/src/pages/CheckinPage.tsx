@@ -2,8 +2,10 @@ import type { SupabaseClient, User } from '@supabase/supabase-js'
 import { useCallback, useEffect, useState } from 'react'
 
 import { CheckinForm } from '../components/CheckinForm'
-import { CheckinHistory } from '../components/CheckinHistory'
+import { CheckinHistory, ProvenanceBadge, Value } from '../components/CheckinHistory'
+import { MOOD_LABELS } from '../checkin/validation'
 import { listCheckins } from '../data/checkins'
+import { ALREADY_CHECKED_IN_TODAY } from '../data/errors'
 import { getOwnProfile } from '../data/profile'
 import { formatUtc, utcDate } from '../lib/format'
 import type { CrewProfile, HealthCheckin } from '../lib/types'
@@ -63,8 +65,12 @@ export function CheckinPage({ client, user }: { client: SupabaseClient; user: Us
 function LinkedCheckin({ client, profile }: { client: SupabaseClient; profile: CrewProfile }) {
   const [rows, setRows] = useState<HealthCheckin[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadedOnce, setLoadedOnce] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [lastSaved, setLastSaved] = useState<HealthCheckin | null>(null)
+  // UTC date on which the database answered 23505. Keeps the form locked even if the
+  // device clock disagrees with the server about which day it is.
+  const [duplicateDay, setDuplicateDay] = useState<string | null>(null)
 
   const reload = useCallback(async () => {
     setLoading(true)
@@ -75,6 +81,7 @@ function LinkedCheckin({ client, profile }: { client: SupabaseClient; profile: C
       setError(err instanceof Error ? err.message : 'Could not load check-ins.')
     } finally {
       setLoading(false)
+      setLoadedOnce(true)
     }
   }, [client, profile.id])
 
@@ -89,8 +96,16 @@ function LinkedCheckin({ client, profile }: { client: SupabaseClient; profile: C
     void reload()
   }
 
+  function onAlreadyCheckedIn() {
+    setDuplicateDay(utcDate(new Date()))
+    void reload()
+  }
+
+  // The cap (migration 4) applies to every source, so any row dated today counts.
   const today = utcDate(new Date())
-  const todays = rows.find((r) => r.source !== 'synthetic' && utcDate(r.recorded_at) === today)
+  const todays = rows.find((r) => utcDate(r.recorded_at) === today)
+  const alreadyToday = !!todays || duplicateDay === today
+  const formDisabled = alreadyToday || !loadedOnce
 
   return (
     <div className="space-y-8">
@@ -105,13 +120,23 @@ function LinkedCheckin({ client, profile }: { client: SupabaseClient; profile: C
             Check-in saved at {formatUtc(lastSaved.recorded_at)} as self-reported.
           </p>
         )}
-        {!lastSaved && todays && (
-          <p className="mb-5 rounded bg-slate-100 p-3 text-sm text-slate-700">
-            You already checked in today at {formatUtc(todays.recorded_at)}. Saving again adds a
-            separate check-in.
-          </p>
+        {alreadyToday && (
+          <div role="status" className="mb-5 rounded bg-slate-100 p-3 text-sm text-slate-800">
+            <p className="font-medium">{ALREADY_CHECKED_IN_TODAY}</p>
+            {todays ? (
+              <TodaySummary row={todays} />
+            ) : (
+              <p className="mt-1 text-slate-600">{loading ? 'Loading it…' : 'It will appear in the history below.'}</p>
+            )}
+          </div>
         )}
-        <CheckinForm client={client} profileId={profile.id} onSaved={onSaved} />
+        <CheckinForm
+          client={client}
+          profileId={profile.id}
+          disabled={formDisabled}
+          onSaved={onSaved}
+          onAlreadyCheckedIn={onAlreadyCheckedIn}
+        />
       </section>
 
       <section className="rounded-lg border border-slate-200 bg-white p-6">
@@ -125,5 +150,39 @@ function LinkedCheckin({ client, profile }: { client: SupabaseClient; profile: C
         />
       </section>
     </div>
+  )
+}
+
+function TodaySummary({ row }: { row: HealthCheckin }) {
+  return (
+    <dl className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-1">
+      <div>
+        <dt className="inline text-slate-500">Recorded </dt>
+        <dd className="inline">{formatUtc(row.recorded_at)}</dd>
+      </div>
+      <div>
+        <dt className="inline text-slate-500">Sleep </dt>
+        <dd className="inline">
+          <Value value={row.sleep_duration_hours} unit="h" />
+        </dd>
+      </div>
+      <div>
+        <dt className="inline text-slate-500">Resting HR </dt>
+        <dd className="inline">
+          <Value value={row.resting_heart_rate} unit="bpm" />
+        </dd>
+      </div>
+      <div>
+        <dt className="inline text-slate-500">Mood </dt>
+        <dd className="inline">
+          {row.mood_rating === null ? (
+            <Value value={null} unit="" />
+          ) : (
+            `${row.mood_rating} ${MOOD_LABELS[row.mood_rating]}`
+          )}
+        </dd>
+      </div>
+      <ProvenanceBadge row={row} />
+    </dl>
   )
 }
