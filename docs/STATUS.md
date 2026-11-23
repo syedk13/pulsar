@@ -7,7 +7,7 @@ Living handoff doc for people and agents. Rules (also in [AGENTS.md](../AGENTS.m
 - If you get stuck, move it to **Blocked** and say what you need.
 - Keep entries to one or two lines. Link files instead of describing them.
 
-**Snapshot**: scaffold only. No screens, no ML, no seeded data, no NASA integrations, no remote Supabase project, no deployment.
+**Snapshot**: Supabase project live with both migrations applied and the synthetic dataset loaded. No screens, no ML scoring, no NASA integrations, no deployment.
 **Demo deadline**: _set this_
 
 ## Milestones
@@ -15,8 +15,8 @@ Living handoff doc for people and agents. Rules (also in [AGENTS.md](../AGENTS.m
 | # | Milestone | Done when | State |
 |---|---|---|---|
 | M0 | Scaffold | Web builds, `GET /health` 200, `POST /analyze` 501, migration written | Done |
-| M1 | Supabase live | Project created, `.env` filled, migration applied, demo access policy decided | Not started |
-| M2 | Synthetic data | Deterministic generator for profiles, check-ins and mission readings, all labeled simulated, loadable into Supabase | In progress (generator done; migration + loader remain) |
+| M1 | Supabase live | Project created, `.env` filled, migration applied, demo access policy decided | Done |
+| M2 | Synthetic data | Deterministic generator for profiles, check-ins and mission readings, all labeled simulated, loadable into Supabase | Done |
 | M3 | Check-in flow | Web form saves a check-in for a fictional profile and shows it back | Not started |
 | M4 | Baselines + `/analyze` | Per-profile baseline, anomaly score, explanation, `insufficient_data` path, result saved to `anomaly_results` | Not started |
 | M5 | Core screens | Mission Overview, Health Trends with baseline band, separate mission-context panel, Flag Details | Not started |
@@ -40,20 +40,20 @@ Living handoff doc for people and agents. Rules (also in [AGENTS.md](../AGENTS.m
 
 Ordered. Milestone in brackets. Take from the top unless you are told otherwise.
 
-1. [M1] Create the Supabase project, fill `.env`, apply `supabase/migrations/20261114000000_initial_schema.sql`. (Manual, project owner.)
-2. [M1] Decide sign-in vs no sign-in for the demo. If no sign-in, add a new migration with `anon` SELECT policies limited to `is_fictional = true`.
-3. [M2] Apply both migrations to the Supabase project and run `supabase/load_synthetic.psql` (needs item 1). Compare counts with `synthetic_manifest.json`.
-4. [API] Add a first test for `GET /health` and the current `POST /analyze` 501 (pytest is now installed).
-5. [M4] Feature prep + personal baseline (rolling median, short-term trend) in `apps/api/app/ml/`.
-6. [M4] Isolation Forest scoring + per-indicator explanation; implement `POST /analyze` per `docs/api-contract.md`.
-7. [M4] Environment status labels (`ppco2_above_1h_limit`, `ppco2_above_7d_guidance`, `solar_storm_S1`..`S5`) per `synthetic-data.md` section 8. Kept separate from `/analyze`.
-8. [M3] Web: `src/api/` client, profile picker, Daily Check-in form.
-9. [M5] Web: Mission Overview, Health Trends (Recharts), mission-context panel, Flag Details panel.
-10. [M6] Demo script + walkthrough check.
-11. [M7] Save DONKI SEP and NOAA proton samples (commands in `data-sources.md`), then `providers/noaa_swpc.py` and `providers/donki.py`; add `NASA_API_KEY` to `.env.example`.
+1. [M3] Create demo accounts in Supabase Auth (one per crew profile) and set `crew_profiles.user_id` for each, so signed-in users see their own profile under the existing RLS. Note: re-running `load_synthetic.psql` reloads profiles with `user_id` empty, so relink after any reload.
+2. [API] Add a first test for `GET /health` and the current `POST /analyze` 501 (pytest is now installed).
+3. [M4] Feature prep + personal baseline (rolling median, short-term trend) in `apps/api/app/ml/`.
+4. [M4] Isolation Forest scoring + per-indicator explanation; implement `POST /analyze` per `docs/api-contract.md`.
+5. [M4] Environment status labels (`ppco2_above_1h_limit`, `ppco2_above_7d_guidance`, `solar_storm_S1`..`S5`) per `synthetic-data.md` section 8. Kept separate from `/analyze`.
+6. [M3] Web: `src/api/` client, profile picker, Daily Check-in form.
+7. [M5] Web: Mission Overview, Health Trends (Recharts), mission-context panel, Flag Details panel.
+8. [M6] Demo script + walkthrough check.
+9. [M7] Save DONKI SEP and NOAA proton samples (commands in `data-sources.md`), then `providers/noaa_swpc.py` and `providers/donki.py`; add `NASA_API_KEY` to `.env.example`.
 
 ## Done
 
+- [M1] Supabase project created, `.env` filled, both migrations applied. Demo access decided: **sign-in** (existing owner-only RLS stays; no `anon` policies).
+- [M2] Synthetic dataset loaded into Supabase with `supabase/load_synthetic.psql`; row counts match `synthetic_manifest.json`.
 - [M2] Migration `20261116000000_environment_types_and_mission_events.sql` (new measurement types, `mission_events` + RLS) and loader `supabase/load_synthetic.psql`; tested on local Postgres 16 (all 86,219 rows load, re-run safe).
 - [M2] Synthetic generator `synth-0.2.0` in [apps/api/app/synthetic/](../apps/api/app/synthetic/) with 21 pytest checks (determinism, V1 4033 guardrail, CO2 1 h/7 d, scenarios). Branch `ml/synthetic-generator`.
 - [M0] Scaffold: React/Vite web, FastAPI with `/health` and 501 `/analyze`, schema + RLS migration, docs, pinned deps and lockfiles.
@@ -63,7 +63,7 @@ Ordered. Milestone in brackets. Take from the top unless you are told otherwise.
 
 | Item | Type | Notes |
 |---|---|---|
-| Demo auth | Decision | Signed-in fictional astronauts vs anon read-only policies. Blocks M1 item 2. |
+| Demo auth | Decided | Demo uses sign-in: one Supabase Auth account per fictional crew profile, linked through `crew_profiles.user_id`. Existing owner-only RLS stays; no `anon` policies. |
 | Minimum history for a baseline | Decision | Proposed in `synthetic-data.md`: 14-day rolling median, 7 check-ins minimum. Confirm and document in `api-contract.md`. |
 | Live NASA data | Decided | No public raw daily crew health data exists; health is fully synthetic. Environment is synthetic. Live mode adds only NOAA proton flux and DONKI events. See `data-sources.md`. |
 | Official limits | Decided | Only environment limits are used: ppCO2 1-hour ≤ 3 mmHg (V2 6004), 7-day < 2.5 mmHg (TB-004 guidance), NOAA S-scale. Radiation PELs (600 mSv career, 250 mSv SPE) need personal effective dose, so they are not compared to module readings; V1 4033 (1.3 mSv/day) is a generator guardrail only. Crew health flags stay personal-baseline. |
@@ -78,6 +78,7 @@ Ordered. Milestone in brackets. Take from the top unless you are told otherwise.
 
 Newest first. Format: `YYYY-MM-DD: what changed (area)`.
 
+- 2026-11-21: Supabase project live, both migrations applied, synthetic data loaded; demo uses sign-in. M1 and M2 done (db).
 - 2026-11-16: Migration 2 (measurement types, `mission_events`) and `supabase/load_synthetic.psql` loader; `data-model.md` updated (db).
 - 2026-11-16: Synthetic data generator `synth-0.2.0` (CREW-A to D, S0 to S7, 5 telemetry series at 5 min, 2 events), shared `app/limits.py`, pytest + 21 generator tests, `npm run synth` / `npm run test:api` (ml).
 - 2026-11-16: Aligned data plan with NASA-STD-3001, OCHMO-TB-020/004/030 and NOAA S-scale: official limits table, ppCO2 and proton flux streams, scenarios S5 to S7, environment status labels, demo vs live source split (docs).
