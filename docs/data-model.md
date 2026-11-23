@@ -1,6 +1,6 @@
 # Data model
 
-> Status: schema defined in `supabase/migrations/` (`20261114000000_initial_schema.sql`, `20261116000000_environment_types_and_mission_events.sql`, `20261123000000_protect_form_checkins.sql`). Synthetic data loads with `supabase/load_synthetic.psql`.
+> Status: schema defined in `supabase/migrations/` (`20261114000000_initial_schema.sql`, `20261116000000_environment_types_and_mission_events.sql`, `20261123000000_protect_form_checkins.sql`, `20261123010000_one_checkin_per_day.sql`). Synthetic data loads with `supabase/load_synthetic.psql`.
 
 All tables use `uuid` primary keys (`gen_random_uuid()`) and `timestamptz` timestamps. RLS is enabled on all tables.
 
@@ -30,6 +30,8 @@ All tables use `uuid` primary keys (`gen_random_uuid()`) and `timestamptz` times
 | data_quality | jsonb | completeness / flags |
 
 Index: `(profile_id, recorded_at desc)`.
+
+**One check-in per profile per UTC day** (all sources): unique index `health_checkins_one_per_day_uidx` on `(profile_id, UTC date of recorded_at)`. A second same-day insert fails with error `23505`. For inserts from the app (`authenticated` role), a trigger sets `recorded_at` to the server's `now()`, so the browser's clock and any backdating are ignored.
 
 ## environment_readings
 Mission-context telemetry — **not** personal data or personal dose.
