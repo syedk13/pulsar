@@ -26,15 +26,18 @@ These apply to every change: code, copy, docs, demo script.
 
 | Path | What | State |
 |---|---|---|
-| `apps/web/` | React 19 + TypeScript + Vite 8, Tailwind 4, Recharts | Placeholder `src/main.tsx` only |
-| `apps/web/src/lib/supabase.ts` | Browser Supabase client (publishable key) | Exists, not imported yet |
+| `apps/web/` | React 19 + TypeScript + Vite 8, Tailwind 4, Recharts | Sign-in + Daily Check-in (M3); no router yet |
+| `apps/web/src/lib/supabase.ts` | Browser Supabase client (publishable key); `null` + `supabaseConfigError` when env is missing | Done |
+| `apps/web/src/data/` | Supabase reads/writes (`getOwnProfile`, `listCheckins`, `createCheckin`); components never query Supabase directly | Done |
+| `apps/web/src/checkin/validation.ts` | Form validation + `buildFormCheckin` (always `source: 'self_report'`, `is_simulated: false`) | Done |
+| `apps/web/src/pages/CheckinPage.tsx` | Resolves the signed-in user's crew profile (loading / unlinked / error states), form + recent history | Done |
 | `apps/api/app/main.py` | FastAPI app: `GET /health`, `POST /analyze` | `/health` works, `/analyze` returns 501 |
 | `apps/api/app/config.py` | Settings from root `.env` (pydantic-settings) | Done |
 | `apps/api/app/schemas.py` | Request/response models for the API contract | Done |
 | `apps/api/app/limits.py` | Official environment reference values + `s_scale_level()` (shared by generator and future providers) | Done |
-| `apps/api/app/synthetic/` | Deterministic generator (`synth-0.2.0`): `npm run synth` → CSVs + manifest in `app/synthetic/out/` (git-ignored) | Done, not loaded into Supabase |
+| `apps/api/app/synthetic/` | Deterministic generator (`synth-0.2.0`): `npm run synth` → CSVs + manifest in `app/synthetic/out/` (git-ignored) | Done, loaded with `supabase/load_synthetic.psql` |
 | `apps/api/tests/` | pytest (`npm run test:api`) | Generator tests only |
-| `supabase/migrations/` | Schema + RLS for 4 tables | Written, not applied to any project |
+| `supabase/migrations/` | Schema + RLS (5 tables), measurement types, form check-in protection | Applied to the Supabase project (migration 3: confirm) |
 | `docs/` | Architecture, data model, API contract, data sources, STATUS | Current |
 
 Proposed homes for new code (create when the task starts, then update this table):
@@ -44,7 +47,7 @@ Proposed homes for new code (create when the task starts, then update this table
 | `apps/api/app/ml/` | Feature prep, baselines, anomaly model, explanations |
 | `apps/api/app/providers/` | NASA source adapters (PIMS, RadLab, ...), one module each |
 | `apps/web/src/api/` | One function per FastAPI endpoint; components never call `fetch` directly |
-| `apps/web/src/pages/` | Mission Overview, Daily Check-in, Health Trends (+ Flag Details panel) |
+| `apps/web/src/pages/` | Mission Overview, Health Trends (+ Flag Details panel) |
 
 ## Work areas
 
@@ -131,7 +134,8 @@ Planned auth: the browser forwards the user's Supabase JWT; the API verifies it 
 ## Data quirks and gotchas
 
 - One root `.env` feeds both apps: Vite via `envDir: '../..'`, the API via pydantic-settings reading `../../.env`.
-- `apps/web/src/lib/supabase.ts` calls `createClient` at import time; with an empty URL it will throw. Guard it or keep it unimported until Supabase is configured.
+- `apps/web/src/lib/supabase.ts` exports `supabase: SupabaseClient | null`; it is `null` when the `VITE_SUPABASE_*` vars are missing, and `App.tsx` shows a configuration message instead of crashing.
+- Web check-ins always send `source` and `is_simulated` explicitly. Do not rely on column defaults, and never send `synthetic` from the browser (RLS rejects it too).
 - The migration has not been applied anywhere and there is no remote Supabase project yet. Code that needs the DB must degrade gracefully (or use local synthetic data) until it is.
 - `POST /analyze` currently validates the body before returning 501, so a bad body gives 422, not 501.
 - The local machine has a parent Git repo at `/Users/syedk`. Always run Git from `/Users/syedk/pulsar` and check `git rev-parse --show-toplevel` before committing.
