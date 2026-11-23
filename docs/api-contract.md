@@ -46,5 +46,11 @@ Planned: analyse a check-in against the profile's personal baseline and return a
 
 Planned behaviour (not built): load history from Supabase with the server key, compute baseline, score, write a row to `anomaly_results`. Output is decision support, not diagnosis.
 
+### Baseline rule (decided)
+- Baseline per indicator = median of the profile's **last 14 check-ins** before the one being scored, counted by check-in, not by calendar days.
+- History includes every source (`synthetic` and `self_report`), so form check-ins build on the synthetic mission.
+- Fewer than **7** earlier check-ins → `label: "insufficient_data"` ("collecting baseline"), no score.
+- A field that is `null` in a check-in is skipped for that indicator, not treated as zero.
+
 ### Planned auth
 The browser will forward the user's Supabase JWT (`Authorization: Bearer …`); the API will verify it and check the caller owns `profile_id`.

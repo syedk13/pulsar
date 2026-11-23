@@ -1,6 +1,6 @@
 # Data model
 
-> Status: schema defined in `supabase/migrations/` (`20261114000000_initial_schema.sql`, then `20261116000000_environment_types_and_mission_events.sql`). Synthetic data loads with `supabase/load_synthetic.psql`.
+> Status: schema defined in `supabase/migrations/` (`20261114000000_initial_schema.sql`, `20261116000000_environment_types_and_mission_events.sql`, `20261123000000_protect_form_checkins.sql`). Synthetic data loads with `supabase/load_synthetic.psql`.
 
 All tables use `uuid` primary keys (`gen_random_uuid()`) and `timestamptz` timestamps. RLS is enabled on all tables.
 
@@ -25,8 +25,8 @@ All tables use `uuid` primary keys (`gen_random_uuid()`) and `timestamptz` times
 | sleep_duration_hours | numeric(4,2) | 0–24 |
 | mood_rating | smallint | 1–5 |
 | resting_heart_rate | smallint | bpm, 20–250 |
-| source | text | `self_report` \| `wearable` \| `synthetic` |
-| is_simulated | boolean (default true) | |
+| source | text | `self_report` (default) \| `wearable` \| `synthetic`. Generated rows are `synthetic`; the app can never insert `synthetic` |
+| is_simulated | boolean (default false) | `true` only for generated rows |
 | data_quality | jsonb | completeness / flags |
 
 Index: `(profile_id, recorded_at desc)`.
@@ -86,7 +86,7 @@ Reserved for future analysis output. Nothing populates it yet.
 | Table | Browser (`authenticated`) | Server (secret key) |
 |---|---|---|
 | crew_profiles | read/update own | full |
-| health_checkins | read/insert own | full |
+| health_checkins | read own; insert own, not as `synthetic` | full |
 | environment_readings | read all | write (future ingestion) |
 | mission_events | read all | write |
 | anomaly_results | read own | write (future analysis) |
