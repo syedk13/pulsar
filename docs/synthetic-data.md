@@ -197,7 +197,7 @@ The S-level is derived with the same thresholds as live NOAA data (section 2), s
 Two separate kinds of flags, never merged into one score.
 
 **Crew health flags (personal baseline, from `/analyze`):**
-- Baseline: rolling 14-day median per indicator; at least 7 check-ins, otherwise `insufficient_data`.
+- Baseline: median of the person's **last 14 check-ins** per indicator (count-based, not a 14-day calendar window), from all sources, excluding the check-in being scored. At least 7 earlier check-ins, otherwise `insufficient_data`. Counting check-ins means a form check-in made weeks after the synthetic mission (which ends 2026-10-30) still compares against that history, and missed days do not shrink the baseline.
 - Score with Isolation Forest on deviations from the person's own baseline; explain with per-indicator observed vs baseline.
 - No official or medical thresholds. Environment readings are not model inputs.
 

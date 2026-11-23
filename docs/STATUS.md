@@ -40,15 +40,16 @@ Living handoff doc for people and agents. Rules (also in [AGENTS.md](../AGENTS.m
 
 Ordered. Milestone in brackets. Take from the top unless you are told otherwise.
 
-1. [M3] Create demo accounts in Supabase Auth (one per crew profile) and set `crew_profiles.user_id` for each, so signed-in users see their own profile under the existing RLS. Note: re-running `load_synthetic.psql` reloads profiles with `user_id` empty, so relink after any reload.
-2. [API] Add a first test for `GET /health` and the current `POST /analyze` 501 (pytest is now installed).
-3. [M4] Feature prep + personal baseline (rolling median, short-term trend) in `apps/api/app/ml/`.
-4. [M4] Isolation Forest scoring + per-indicator explanation; implement `POST /analyze` per `docs/api-contract.md`.
-5. [M4] Environment status labels (`ppco2_above_1h_limit`, `ppco2_above_7d_guidance`, `solar_storm_S1`..`S5`) per `synthetic-data.md` section 8. Kept separate from `/analyze`.
-6. [M3] Web: `src/api/` client, profile picker, Daily Check-in form.
-7. [M5] Web: Mission Overview, Health Trends (Recharts), mission-context panel, Flag Details panel.
-8. [M6] Demo script + walkthrough check.
-9. [M7] Save DONKI SEP and NOAA proton samples (commands in `data-sources.md`), then `providers/noaa_swpc.py` and `providers/donki.py`; add `NASA_API_KEY` to `.env.example`.
+1. [M3] Apply `supabase/migrations/20261123000000_protect_form_checkins.sql` in the Supabase SQL Editor (before the form writes check-ins).
+2. [M3] Create demo accounts in Supabase Auth (one per crew profile) and set `crew_profiles.user_id` for each, so signed-in users see their own profile under the existing RLS. Links survive reloads of `load_synthetic.psql`.
+3. [API] Add a first test for `GET /health` and the current `POST /analyze` 501 (pytest is now installed).
+4. [M4] Feature prep + personal baseline (rolling median, short-term trend) in `apps/api/app/ml/`.
+5. [M4] Isolation Forest scoring + per-indicator explanation; implement `POST /analyze` per `docs/api-contract.md`.
+6. [M4] Environment status labels (`ppco2_above_1h_limit`, `ppco2_above_7d_guidance`, `solar_storm_S1`..`S5`) per `synthetic-data.md` section 8. Kept separate from `/analyze`.
+7. [M3] Web: `src/api/` client, profile picker, Daily Check-in form.
+8. [M5] Web: Mission Overview, Health Trends (Recharts), mission-context panel, Flag Details panel.
+9. [M6] Demo script + walkthrough check.
+10. [M7] Save DONKI SEP and NOAA proton samples (commands in `data-sources.md`), then `providers/noaa_swpc.py` and `providers/donki.py`; add `NASA_API_KEY` to `.env.example`.
 
 ## Done
 
@@ -64,7 +65,7 @@ Ordered. Milestone in brackets. Take from the top unless you are told otherwise.
 | Item | Type | Notes |
 |---|---|---|
 | Demo auth | Decided | Demo uses sign-in: one Supabase Auth account per fictional crew profile, linked through `crew_profiles.user_id`. Existing owner-only RLS stays; no `anon` policies. |
-| Minimum history for a baseline | Decision | Proposed in `synthetic-data.md`: 14-day rolling median, 7 check-ins minimum. Confirm and document in `api-contract.md`. |
+| Minimum history for a baseline | Decided | Median of the last 14 check-ins (count-based, not calendar days), 7 earlier check-ins minimum. Documented in `api-contract.md`. |
 | Live NASA data | Decided | No public raw daily crew health data exists; health is fully synthetic. Environment is synthetic. Live mode adds only NOAA proton flux and DONKI events. See `data-sources.md`. |
 | Official limits | Decided | Only environment limits are used: ppCO2 1-hour ≤ 3 mmHg (V2 6004), 7-day < 2.5 mmHg (TB-004 guidance), NOAA S-scale. Radiation PELs (600 mSv career, 250 mSv SPE) need personal effective dose, so they are not compared to module readings; V1 4033 (1.3 mSv/day) is a generator guardrail only. Crew health flags stay personal-baseline. |
 | Bone density | Decided | Not modeled: no in-flight measurement exists; limits are pre/post-mission DXA. |
@@ -77,6 +78,8 @@ Ordered. Milestone in brackets. Take from the top unless you are told otherwise.
 ## Changelog
 
 Newest first. Format: `YYYY-MM-DD: what changed (area)`.
+
+- 2026-11-23: Migration 3 (form check-ins can't be `synthetic`, `is_simulated` defaults to false); loader now replaces only synthetic rows and keeps profiles, account links and form check-ins; baseline defined as last 14 check-ins (db, docs).
 
 - 2026-11-21: Supabase project live, both migrations applied, synthetic data loaded; demo uses sign-in. M1 and M2 done (db).
 - 2026-11-16: Migration 2 (measurement types, `mission_events`) and `supabase/load_synthetic.psql` loader; `data-model.md` updated (db).
