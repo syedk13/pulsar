@@ -18,7 +18,7 @@ Living handoff doc for people and agents. Rules (also in [AGENTS.md](../AGENTS.m
 | M1 | Supabase live | Project created, `.env` filled, migration applied, demo access policy decided | Done |
 | M2 | Synthetic data | Deterministic generator for profiles, check-ins and mission readings, all labeled simulated, loadable into Supabase | Done |
 | M3 | Check-in flow | Web form saves a check-in for a fictional profile and shows it back | Done |
-| M4 | Baselines + `/analyze` | Per-profile baseline, anomaly score, explanation, `insufficient_data` path, result saved to `anomaly_results` | In progress (API done and tested with fakes; live test against Supabase pending) |
+| M4 | Baselines + `/analyze` | Per-profile baseline, anomaly score, explanation, `insufficient_data` path, result saved to `anomaly_results` | Done |
 | M5 | Core screens | Mission Overview, Health Trends with baseline band, separate mission-context panel with environment status labels, Flag Details | Not started |
 | M6 | Demo ready | Scripted walkthrough runs end to end on synthetic data with no external keys | Not started |
 | M7 | Optional live hooks | NOAA SWPC proton flux (S-level) and DONKI events behind `app/providers/`, saved samples for offline, provenance shown | Optional |
@@ -40,14 +40,14 @@ Living handoff doc for people and agents. Rules (also in [AGENTS.md](../AGENTS.m
 
 Ordered. Milestone in brackets. Take from the top unless you are told otherwise.
 
-1. [M4] Live test of `POST /analyze` against Supabase with a demo account's access token: 401 without a token, 404 for another profile, a result for the latest check-in, one row per check-in in `anomaly_results`. Then mark M4 done.
-2. [M5] Web: Mission Overview, Health Trends (Recharts), mission-context panel, Flag Details panel.
-3. [M5] Environment status labels (`ppco2_above_1h_limit`, `ppco2_above_7d_guidance`, `solar_storm_S1`..`S5`) per `synthetic-data.md` section 8. Kept separate from `/analyze`, shown on the mission-context panel.
-4. [M6] Demo script + walkthrough check.
-5. [M7] Save DONKI SEP and NOAA proton samples (commands in `data-sources.md`), then `providers/noaa_swpc.py` and `providers/donki.py`; add `NASA_API_KEY` to `.env.example`.
+1. [M5] Web: Mission Overview, Health Trends (Recharts), mission-context panel, Flag Details panel.
+2. [M5] Environment status labels (`ppco2_above_1h_limit`, `ppco2_above_7d_guidance`, `solar_storm_S1`..`S5`) per `synthetic-data.md` section 8. Kept separate from `/analyze`, shown on the mission-context panel.
+3. [M6] Demo script + walkthrough check.
+4. [M7] Save DONKI SEP and NOAA proton samples (commands in `data-sources.md`), then `providers/noaa_swpc.py` and `providers/donki.py`; add `NASA_API_KEY` to `.env.example`.
 
 ## Done
 
+- [M4] Personal-baseline scoring verified live against Supabase: `POST /analyze` with a demo account's token returns 401 without a token and 404 for another profile, scores the latest check-in (median of the last 14, Isolation Forest, plain-language explanation, `insufficient_data` path) and saves one row per check-in to `anomaly_results`.
 - [M4] Personal baselines + `POST /analyze` (`baseline-iforest-0.1.0`) in [apps/api/app/ml/](../apps/api/app/ml/): last-14 median, MAD spread, trend, pooled Isolation Forest, plain-language explanation, `insufficient_data` path, Supabase-token auth, results saved to `anomaly_results`. 56 pytest checks incl. scenario acceptance. Branch `ml/analyze-baseline`.
 - [M3] Check-in flow verified live against Supabase: sign-in, linked profile, validation, one-per-day cap, reload keeps form check-ins.
 - [M1] Supabase project created, `.env` filled, both migrations applied. Demo access decided: **sign-in** (existing owner-only RLS stays; no `anon` policies).
@@ -79,6 +79,7 @@ Ordered. Milestone in brackets. Take from the top unless you are told otherwise.
 
 Newest first. Format: `YYYY-MM-DD: what changed (area)`.
 
+- 2026-11-24: M4 done after live test of `POST /analyze` against Supabase (ml, api).
 - 2026-11-24: M4 API: personal baselines, Isolation Forest score, explanations and `insufficient_data` in `app/ml/`; `POST /analyze` with Supabase-token auth saves to `anomaly_results`; `/health` test; environment status labels moved to M5 (ml, api, docs).
 - 2026-11-23: M3 done; check-ins capped at one per profile per UTC day (web, db).
 - 2026-11-23: Web check-in flow: email sign-in, own crew profile lookup, validated Daily Check-in form (writes `self_report`, `is_simulated = false`), recent history with provenance badges; guarded Supabase client (web).
