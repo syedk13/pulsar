@@ -14,3 +14,7 @@ select = ["E", "F", "I", "UP", "B"]
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
+filterwarnings = [
+  # fastapi.testclient still imports starlette's httpx-based client; harmless for tests.
+  "ignore:Using `httpx` with `starlette.testclient`",
+]

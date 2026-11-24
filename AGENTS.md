@@ -31,12 +31,15 @@ These apply to every change: code, copy, docs, demo script.
 | `apps/web/src/data/` | Supabase reads/writes (`getOwnProfile`, `listCheckins`, `createCheckin`); components never query Supabase directly | Done |
 | `apps/web/src/checkin/validation.ts` | Form validation + `buildFormCheckin` (always `source: 'self_report'`, `is_simulated: false`) | Done |
 | `apps/web/src/pages/CheckinPage.tsx` | Resolves the signed-in user's crew profile (loading / unlinked / error states), form + recent history | Done |
-| `apps/api/app/main.py` | FastAPI app: `GET /health`, `POST /analyze` | `/health` works, `/analyze` returns 501 |
+| `apps/api/app/main.py` | FastAPI app: `GET /health`, `POST /analyze` (auth, ownership, 401/404/503) | Done |
+| `apps/api/app/ml/` | Personal baseline, features, pooled Isolation Forest, explanations (`MODEL_VERSION`); pure functions, no I/O | Done (`baseline-iforest-0.1.0`) |
+| `apps/api/app/repository.py` | `AnalysisRepository` protocol + `SupabaseRepository` (secret key, server only): check-ins, `anomaly_results` | Done |
+| `apps/api/app/auth.py` | `AuthVerifier` protocol + `SupabaseAuthVerifier` (asks Supabase Auth who a token belongs to) | Done |
 | `apps/api/app/config.py` | Settings from root `.env` (pydantic-settings) | Done |
 | `apps/api/app/schemas.py` | Request/response models for the API contract | Done |
 | `apps/api/app/limits.py` | Official environment reference values + `s_scale_level()` (shared by generator and future providers) | Done |
 | `apps/api/app/synthetic/` | Deterministic generator (`synth-0.2.0`): `npm run synth` → CSVs + manifest in `app/synthetic/out/` (git-ignored) | Done, loaded with `supabase/load_synthetic.psql` |
-| `apps/api/tests/` | pytest (`npm run test:api`) | Generator tests only |
+| `apps/api/tests/` | pytest (`npm run test:api`): generator, health, ml units, scenario acceptance, `/analyze` with fake repo/auth | 56 tests, no network |
 | `supabase/migrations/` | Schema + RLS (5 tables), measurement types, form check-in protection | Applied to the Supabase project (migration 3: confirm) |
 | `docs/` | Architecture, data model, API contract, data sources, STATUS | Current |
 
@@ -44,7 +47,6 @@ Proposed homes for new code (create when the task starts, then update this table
 
 | Path | For |
 |---|---|
-| `apps/api/app/ml/` | Feature prep, baselines, anomaly model, explanations |
 | `apps/api/app/providers/` | NASA source adapters (PIMS, RadLab, ...), one module each |
 | `apps/web/src/api/` | One function per FastAPI endpoint; components never call `fetch` directly |
 | `apps/web/src/pages/` | Mission Overview, Health Trends (+ Flag Details panel) |
@@ -117,11 +119,11 @@ Types live in `apps/api/app/schemas.py`; prose in `docs/api-contract.md`. Change
 | Endpoint | State | Shape |
 |---|---|---|
 | `GET /health` | Implemented | `{status: "ok", service, demo_mode}` |
-| `POST /analyze` | 501 | Request `{profile_id, checkin_id?}`. Planned response `{score, label, explanation, contributing_changes: [{feature, observed, baseline, unit}], model_version}` |
+| `POST /analyze` | Implemented | Request `{profile_id, checkin_id?}`. Response `{checkin_id, score \| null, label, explanation, contributing_changes: [{feature, observed, baseline, unit, basis}], model_version}` |
 
-Planned auth: the browser forwards the user's Supabase JWT; the API verifies it and checks the caller owns `profile_id`.
+Auth: `Authorization: Bearer <Supabase access token>`; the API verifies it with Supabase Auth and checks the caller owns `profile_id` (401 / 404, no `DEMO_MODE` bypass). Model, label rule and stored result: `docs/api-contract.md`.
 
-## ML guidance (planned, not built)
+## ML guidance (implemented in `apps/api/app/ml/`, details in `docs/api-contract.md`)
 
 1. **Synthetic data first.** Fixed random seed, several fictional profiles, each with a stable pattern and normal day-to-day noise. Include scripted scenarios: gradual sleep decline, unusual resting heart rate trend. Mark every row `source = 'synthetic'`, `is_simulated = true`.
 2. **Features relative to self.** Deviation from the profile's rolling median plus a short-term trend per indicator. Keep raw values for the explanation.
@@ -137,7 +139,8 @@ Planned auth: the browser forwards the user's Supabase JWT; the API verifies it 
 - `apps/web/src/lib/supabase.ts` exports `supabase: SupabaseClient | null`; it is `null` when the `VITE_SUPABASE_*` vars are missing, and `App.tsx` shows a configuration message instead of crashing.
 - Web check-ins always send `source` and `is_simulated` explicitly. Do not rely on column defaults, and never send `synthetic` from the browser (RLS rejects it too).
 - The migration has not been applied anywhere and there is no remote Supabase project yet. Code that needs the DB must degrade gracefully (or use local synthetic data) until it is.
-- `POST /analyze` currently validates the body before returning 501, so a bad body gives 422, not 501.
+- `POST /analyze` checks the token before the body: no token → 401 even with a bad body; valid token + bad body → 422.
+- Tests swap Supabase out with `app.dependency_overrides[get_repository]` / `[get_auth_verifier]`; never call the real Supabase from tests.
 - The local machine has a parent Git repo at `/Users/syedk`. Always run Git from `/Users/syedk/pulsar` and check `git rev-parse --show-toplevel` before committing.
 
 ## Security rules

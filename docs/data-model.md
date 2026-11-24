@@ -71,7 +71,7 @@ Space weather (DONKI, NOAA S-scale) and environment excursions. Context only, ne
 Index: `(start_time desc)`.
 
 ## anomaly_results
-Reserved for future analysis output. Nothing populates it yet.
+Written by `POST /analyze` with the server key, one row per (profile, check-in, `model_version`): re-analysing replaces the row. `explanation` holds `text`, `contributing_changes`, `window`, per-indicator `indicators`, `label_rule`, `flag_path`, `not_validated` (see `api-contract.md`). `score` is null for `insufficient_data`; `checkin_id` is null when the profile had no check-ins.
 
 | Column | Type | Notes |
 |---|---|---|
@@ -91,6 +91,6 @@ Reserved for future analysis output. Nothing populates it yet.
 | health_checkins | read own; insert own, not as `synthetic` | full |
 | environment_readings | read all | write (future ingestion) |
 | mission_events | read all | write |
-| anomaly_results | read own | write (future analysis) |
+| anomaly_results | read own | write (`POST /analyze`) |
 
 `anon` has no access. If the demo runs without accounts, add narrowly-scoped `anon` SELECT policies restricted to `is_fictional = true` profiles (placeholder noted in the migration).
