@@ -47,8 +47,7 @@ Ordered. Milestone in brackets. Take from the top unless you are told otherwise.
 
 ## Done
 
-- [M4] Personal-baseline scoring verified live against Supabase: `POST /analyze` with a demo account's token returns 401 without a token and 404 for another profile, scores the latest check-in (median of the last 14, Isolation Forest, plain-language explanation, `insufficient_data` path) and saves one row per check-in to `anomaly_results`.
-- [M4] Personal baselines + `POST /analyze` (`baseline-iforest-0.1.0`) in [apps/api/app/ml/](../apps/api/app/ml/): last-14 median, MAD spread, trend, pooled Isolation Forest, plain-language explanation, `insufficient_data` path, Supabase-token auth, results saved to `anomaly_results`. 56 pytest checks incl. scenario acceptance. Branch `ml/analyze-baseline`.
+- [M4] Personal baselines + `POST /analyze` (`baseline-iforest-0.1.0`) in [apps/api/app/ml/](../apps/api/app/ml/): last-14 median, MAD spread, trend, pooled Isolation Forest, plain-language explanation, `insufficient_data` path, results saved one row per check-in to `anomaly_results`. 56 pytest checks incl. scenario acceptance; verified live against Supabase with a demo account's token (401 without a token, 404 for another profile, latest check-in scored and saved). Branch `ml/analyze-baseline`.
 - [M3] Check-in flow verified live against Supabase: sign-in, linked profile, validation, one-per-day cap, reload keeps form check-ins.
 - [M1] Supabase project created, `.env` filled, both migrations applied. Demo access decided: **sign-in** (existing owner-only RLS stays; no `anon` policies).
 - [M2] Synthetic dataset loaded into Supabase with `supabase/load_synthetic.psql`; row counts match `synthetic_manifest.json`.
